@@ -1,0 +1,18 @@
+[project]
+name = "spotifyanalysis"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.12"
+dependencies = [
+    "langdetect>=1.0.9",
+    "lyricsgenius>=3.12.2",
+    "matplotlib>=3.10.9",
+    "nltk>=3.9.4",
+    "numpy>=2.4.6",
+    "pandas>=3.0.3",
+    "python-dotenv>=1.2.2",
+    "scikit-learn>=1.8.0",
+    "spotipy>=2.26.0",
+    "textblob>=0.20.0",
+    "wordcloud>=1.9.6",
+]
