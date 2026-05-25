@@ -28,3 +28,9 @@ Thumbs.db
 # Secrets
 .env
 .env.*
+
+# Données générées
+data/
+figures/
+rapport.html
+.cache

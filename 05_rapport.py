@@ -30,38 +30,36 @@ cluster_cards = ""
 for _, row in summary.iterrows():
     c = int(row["cluster"])
     n = int(row["n_tracks"])
+    hue = c * 360 // int(summary["cluster"].max() + 1)
 
     if has_lyrics:
         lsub = lyrics[lyrics["cluster"] == c]
-        sent    = lsub["sentiment_polarity"].mean()
-        vocab   = lsub["vocab_richness"].mean()
-        repeat  = lsub["repetition_rate"].mean()
-        sent_str   = f"{sent:+.2f}"
-        vocab_str  = f"{vocab:.2f}"
-        repeat_str = f"{repeat:.2f}"
+        sent_str   = f"{lsub['sentiment_polarity'].mean():+.2f}"
+        vocab_str  = f"{lsub['vocab_richness'].mean():.2f}"
+        repeat_str = f"{lsub['repetition_rate'].mean():.2f}"
     else:
         sent_str = vocab_str = repeat_str = "N/A"
 
+    year = row.get("release_year_mean", "")
+    year_str = f"{float(year):.0f}" if year and not (isinstance(year, float) and np.isnan(year)) else "N/A"
+
     cluster_cards += f"""
     <div class="card">
-      <div class="card-header" style="background: hsl({(c * 360 // int(summary['cluster'].max()+1))}, 55%, 55%);">
+      <div class="card-header" style="background: hsl({hue}, 55%, 55%);">
         Groupe {c+1}
         <span class="badge">{n} titres</span>
       </div>
       <div class="card-body">
         <table>
-          <tr><th>Tonalité</th><td>{row['dominant_key']} {row['dominant_mode']}</td></tr>
-          <tr><th>Tempo</th><td>{row['tempo_mean']:.0f} BPM</td></tr>
-          <tr><th>Énergie</th><td>{row['energy_mean']:.2f}</td></tr>
-          <tr><th>Dansabilité</th><td>{row['danceability_mean']:.2f}</td></tr>
-          <tr><th>Positivité</th><td>{row['valence_mean']:.2f}</td></tr>
-          <tr><th>Acoustique</th><td>{row['acousticness_mean']:.2f}</td></tr>
-          <tr><th>Popularité</th><td>{row['popularity_mean']:.1f}/100</td></tr>
+          <tr><th>Genre dominant</th><td>{row.get('dominant_genre', 'N/A')}</td></tr>
+          <tr><th>Top tags</th><td style="font-size:11px">{str(row.get('top_tags', ''))[:60]}</td></tr>
+          <tr><th>Popularité moy.</th><td>{row['popularity_mean']:.1f}/100</td></tr>
+          <tr><th>Année moy.</th><td>{year_str}</td></tr>
           <tr><th colspan="2" style="padding-top:8px;color:#666">Paroles</th></tr>
           <tr><th>Sentiment</th><td>{sent_str}</td></tr>
           <tr><th>Richesse vocab.</th><td>{vocab_str}</td></tr>
           <tr><th>Répétitivité</th><td>{repeat_str}</td></tr>
-          <tr><th>Top artistes</th><td style="font-size:12px">{row['top_artists']}</td></tr>
+          <tr><th>Top artistes</th><td style="font-size:11px">{row['top_artists']}</td></tr>
         </table>
       </div>
     </div>
@@ -69,11 +67,11 @@ for _, row in summary.iterrows():
 
 figures_html = ""
 for title, path in [
-    ("Carte des clusters",       "figures/umap_clusters.png"),
-    ("Profils musicaux (radar)", "figures/cluster_profiles.png"),
-    ("Distributions des features","figures/feature_distributions.png"),
-    ("Métriques des paroles",    "figures/lyrics_metrics.png"),
-    ("Champs lexicaux",          "figures/lyrics_wordclouds.png"),
+    ("Carte des clusters",          "figures/umap_clusters.png"),
+    ("Top tags par groupe",         "figures/cluster_genres.png"),
+    ("Distribution des genres",     "figures/genre_distribution.png"),
+    ("Métriques des paroles",       "figures/lyrics_metrics.png"),
+    ("Champs lexicaux",             "figures/lyrics_wordclouds.png"),
 ]:
     b64 = img_to_b64(path)
     if b64:
@@ -95,7 +93,7 @@ html = f"""<!DOCTYPE html>
   h3 {{ font-size: 16px; margin: 0 0 8px; }}
   .meta {{ color: #888; font-size: 14px; margin-bottom: 32px; }}
   .cards {{ display: flex; flex-wrap: wrap; gap: 16px; }}
-  .card {{ border: 1px solid #e0e0e0; border-radius: 10px; overflow: hidden; width: 220px; }}
+  .card {{ border: 1px solid #e0e0e0; border-radius: 10px; overflow: hidden; width: 230px; }}
   .card-header {{ color: white; font-weight: 600; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }}
   .badge {{ background: rgba(255,255,255,0.25); border-radius: 20px; padding: 2px 10px; font-size: 12px; font-weight: 400; }}
   .card-body {{ padding: 12px 16px; }}
@@ -108,7 +106,7 @@ html = f"""<!DOCTYPE html>
 <body>
   <h1>Analyse de tes playlists Spotify</h1>
   <p class="meta">
-    {len(tracks)} morceaux uniques · {summary['cluster'].nunique()} groupes · 
+    {len(tracks)} morceaux uniques · {summary['cluster'].nunique()} groupes ·
     {int(tracks['playlist_name'].nunique())} playlists
   </p>
 

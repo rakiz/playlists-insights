@@ -1,85 +1,49 @@
-# Analyse de playlists Spotify
+# Playlists Insights
 
-Pipeline complet : extraction → clustering → analyse musicale → analyse des paroles → rapport HTML.
+Analyse complète de tes playlists Spotify : clustering par style, analyse des paroles, et génération de profils musicaux pour créer de meilleurs prompts [Suno](https://suno.com).
+
+## Ce que ça fait
+
+1. **Extraction** — récupère tes playlists et morceaux depuis Spotify
+2. **Enrichissement** — tags et genres via [Last.fm](https://www.last.fm), BPM/tonalité via [GetSongBPM](https://getsongbpm.com)
+3. **Clustering** — groupe les morceaux par similarité musicale (genre, style, tempo)
+4. **Analyse des paroles** — sentiment, richesse vocabulaire, thèmes via [Genius](https://genius.com)
+5. **Rapport HTML** — tableau de bord visuel avec profils par groupe
+
+## Pipeline
+
+```
+01_extract.py      → Spotify + Last.fm  → data/tracks.csv
+01b_audio.py       → previews audio     → features locales (si disponibles)
+01c_bpm.py         → GetSongBPM         → BPM, tonalité, danceability
+02_clustering.py   → clustering         → data/tracks_clustered.csv
+03_analyse_musicale.py → analyse genres → data/cluster_summary.csv
+04_analyse_paroles.py  → analyse lyrics → data/lyrics_analysis.csv
+05_rapport.py      → rapport HTML       → rapport.html
+```
 
 ## Installation
 
 ```bash
-pip install spotipy pandas numpy scikit-learn matplotlib umap-learn \
-            lyricsgenius nltk textblob wordcloud langdetect
-
-python -m nltk.downloader punkt stopwords vader_lexicon averaged_perceptron_tagger
+brew install uv
+uv sync
 ```
+
+Copie `.env.example` en `.env` et remplis tes clés API.
 
 ## Configuration
 
-### 1. Spotify Developer
-1. Va sur https://developer.spotify.com/dashboard
-2. Crée une application
-3. Copie **Client ID** et **Client Secret**
-4. Dans les settings de l'app, ajoute `http://localhost:8888/callback` comme Redirect URI
-5. Renseigne ces valeurs dans `01_extract.py`
+| Variable | Source |
+|----------|--------|
+| `SPOTIFY_CLIENT_ID` | [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) |
+| `SPOTIFY_CLIENT_SECRET` | idem |
+| `SPOTIFY_REDIRECT_URI` | `http://127.0.0.1:8888/callback` (défaut) |
+| `LASTFM_API_KEY` | [last.fm/api/account/create](https://www.last.fm/api/account/create) |
+| `LASTFM_API_SECRET` | idem |
+| `GENIUS_ACCESS_TOKEN` | [genius.com/api-clients](https://genius.com/api-clients) |
+| `GETSONGBPM_API_KEY` | [getsongbpm.com/api](https://getsongbpm.com/api) |
 
-### 2. Genius API (pour les paroles)
-1. Va sur https://genius.com/api-clients
-2. Crée une app → copie **Client Access Token**
-3. Renseigne-le dans `04_analyse_paroles.py`
+## Notes
 
-## Utilisation
-
-Lance les scripts dans l'ordre :
-
-```bash
-cd spotify_analysis
-
-# 1. Extraire les playlists (crée data/tracks.csv)
-python 01_extract.py
-
-# 2. Clustering par similarité (crée data/tracks_clustered.csv)
-python 02_clustering.py
-
-# 3. Analyse musicale des groupes
-python 03_analyse_musicale.py
-
-# 4. Analyse des paroles (peut être lent selon le nombre de morceaux)
-python 04_analyse_paroles.py
-
-# 5. Rapport HTML final
-python 05_rapport.py
-# → ouvre rapport.html dans le navigateur
-```
-
-## Fichiers produits
-
-```
-data/
-  tracks.csv              — tous les morceaux + audio features
-  tracks_clustered.csv    — avec numéro de cluster
-  cluster_summary.csv     — profil moyen par cluster
-  lyrics_analysis.csv     — métriques des paroles
-  lyrics_cache/           — cache des paroles (évite les re-téléchargements)
-
-figures/
-  elbow.png               — choix du nombre de clusters
-  umap_clusters.png       — carte 2D des morceaux
-  cluster_profiles.png    — radars par groupe
-  feature_distributions.png
-  lyrics_metrics.png
-  lyrics_wordclouds.png
-
-rapport.html              — tableau de bord complet
-```
-
-## Audio features Spotify (valeurs entre 0 et 1 sauf indication)
-
-| Feature | Description |
-|---------|-------------|
-| `energy` | Intensité perçue (0 = calme, 1 = intense) |
-| `danceability` | Aptitude à danser |
-| `valence` | Positivité émotionnelle (0 = sombre, 1 = joyeux) |
-| `acousticness` | Probabilité que le son soit acoustique |
-| `instrumentalness` | Absence de voix |
-| `speechiness` | Présence de paroles parlées/rap |
-| `tempo` | BPM |
-| `key` | Tonalité (0=C, 1=C#, ..., 11=B) |
-| `mode` | 0 = mineur, 1 = majeur |
+- L'endpoint Spotify `/audio-features` est déprécié pour les apps créées après novembre 2024. Ce projet utilise Last.fm et GetSongBPM en remplacement.
+- BPM data powered by [GetSongBPM](https://getsongbpm.com)
