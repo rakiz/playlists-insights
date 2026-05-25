@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["pandas", "numpy", "matplotlib"]
+# ///
 """
 Script 3 — Analyse des genres et tags par cluster
 Résultat : data/cluster_summary.csv + figures/cluster_genres.png + figures/genre_distribution.png
@@ -19,15 +23,53 @@ colors = plt.cm.tab10(np.linspace(0, 1, n_clusters))
 
 # ─── Catégories de genres ────────────────────────────────────────────────────
 GENRE_CATEGORIES = {
-    "Électronique":  ["electronic", "dance", "edm", "techno", "house", "trance",
-                      "dubstep", "electro", "synth", "ambient", "idm"],
-    "Rock / Metal":  ["rock", "metal", "punk", "grunge", "hardcore", "alternative",
-                      "indie rock", "post-rock"],
-    "Pop":           ["pop", "indie pop", "synth-pop", "electropop", "dream pop", "k-pop"],
-    "Hip-hop / Rap": ["hip-hop", "hip hop", "rap", "trap", "rnb", "r&b", "grime"],
-    "Jazz / Soul":   ["jazz", "soul", "blues", "funk", "gospel", "neo soul", "bossa nova"],
-    "Folk / Acoustique": ["folk", "acoustic", "country", "singer-songwriter", "americana"],
-    "Classique":     ["classical", "orchestral", "opera", "chamber", "new age"],
+    "Électronique":        ["electronic", "edm", "techno", "house", "trance", "dubstep",
+                            "electro", "synth", "idm", "electronica", "synthpop", "electropop",
+                            "synthwave", "drum and bass", "dnb", "garage", "ambient", "downtempo",
+                            "trip-hop", "trip hop", "chillout", "lounge", "french house",
+                            "french touch", "new wave", "darkwave", "industrial", "dance",
+                            "dance music", "club", "rave", "breakbeat", "big beat",
+                            "lo-fi", "lofi", "indietronica", "minimal", "experimental",
+                            "microhouse", "glitch", "noise"],
+    "Rock / Metal":        ["rock", "metal", "punk", "grunge", "hardcore", "alternative rock",
+                            "indie rock", "post-rock", "hard rock", "classic rock", "progressive rock",
+                            "pop punk", "post-punk", "gothic rock", "emo", "metalcore",
+                            "psychedelic", "shoegaze", "ska", "surf rock", "garage rock",
+                            "math rock", "noise rock", "stoner rock", "doom"],
+    "Pop":                 ["pop", "indie pop", "dream pop", "k-pop", "dance pop", "electropop",
+                            "easy listening", "ballad", "soft rock", "adult contemporary"],
+    "Hip-hop / Rap":       ["hip-hop", "hip hop", "rap", "trap", "rnb", "r&b", "grime",
+                            "underground hip-hop", "east coast", "west coast", "boom bap",
+                            "conscious hip-hop", "lo-fi hip hop"],
+    "Jazz / Soul / Funk":  ["jazz", "soul", "blues", "funk", "gospel", "neo soul", "bossa nova",
+                            "rhythm and blues", "motown", "disco", "afrobeat",
+                            "swing", "big band", "bebop", "fusion", "smooth jazz"],
+    "Folk / Acoustique":   ["folk", "acoustic", "country", "singer-songwriter", "americana",
+                            "indie folk", "folk rock", "bluegrass", "celtic"],
+    "Chanson Française":   ["chanson", "chanson francaise", "chanson française", "french chanson",
+                            "francais", "français", "francophone", "nouvelle scene francaise",
+                            "ye-ye", "yé-yé", "variete", "variété"],
+    "Classique / Ambient": ["classical", "orchestral", "opera", "chamber", "new age",
+                            "neoclassical", "modern classical", "post-classical", "piano",
+                            "contemporary classical", "cinematic", "instrumental", "soundtrack",
+                            "composer", "film score"],
+    "Musique du Monde":    ["latin", "reggae", "world", "afro", "cumbia", "salsa", "flamenco",
+                            "bossa", "samba", "tango", "fado", "celtic", "arabic", "indian",
+                            "dancehall", "dub", "roots reggae"],
+}
+
+# Tags à ignorer pour le calcul du genre dominant (descriptifs, pas stylistiques)
+SKIP_FOR_GENRE = {
+    "american", "british", "french", "german", "swedish", "australian", "canadian",
+    "irish", "scottish", "japanese", "norwegian", "belgian", "dutch", "italian",
+    "spanish", "female vocalists", "male vocalists", "female vocalist", "male vocalist",
+    "usa", "uk", "us", "france", "seen live", "favourites", "favorite",
+    "beautiful", "amazing", "indie", "alternative", "pop", "rock",
+    "sexy", "mellow", "party", "love", "sad", "happy", "chill", "all",
+    "guitar", "covers", "cover", "spotify", "my top songs", "love at first listen",
+    "90s", "80s", "70s", "60s", "00s", "10s", "2000s", "2010s", "2020s", "oldies",
+    "new york", "california", "england", "sweden", "canada", "germany", "australia",
+    "political", "humour", "scandinavian", "world",
 }
 
 def parse_all_tags(row):
@@ -41,6 +83,8 @@ def parse_all_tags(row):
 def classify_tags(tags):
     cat_counts = Counter()
     for tag in tags:
+        if tag in SKIP_FOR_GENRE:
+            continue
         matched = False
         for cat, keywords in GENRE_CATEGORIES.items():
             if any(kw in tag or tag in kw for kw in keywords):
@@ -62,25 +106,31 @@ for c in sorted(df["cluster"].unique()):
 
     tag_counts   = Counter(all_tags)
     cat_totals   = classify_tags(all_tags)
-    dominant_cat = cat_totals.most_common(1)[0][0] if cat_totals else "Autres"
+    real_cats = [(cat, cnt) for cat, cnt in cat_totals.most_common() if cat != "Autres"]
+    dominant_cat = real_cats[0][0] if real_cats else "Autres"
 
     year = pd.to_numeric(sub.get("release_year", pd.Series(dtype=float)), errors="coerce").mean()
 
-    tempo_mean = pd.to_numeric(sub.get("tempo", pd.Series(dtype=float)), errors="coerce").mean() \
-        if "tempo" in sub.columns else None
-    energy_mean = pd.to_numeric(sub.get("energy", pd.Series(dtype=float)), errors="coerce").mean() \
-        if "energy" in sub.columns else None
+    def col_mean(col):
+        if col not in sub.columns:
+            return None
+        v = pd.to_numeric(sub[col], errors="coerce").mean()
+        return None if pd.isna(v) else v
+
+    listeners = pd.to_numeric(sub.get("lastfm_listeners", pd.Series(dtype=float)), errors="coerce")
+    listeners_mean = listeners.mean() if listeners.notna().sum() > 0 else None
 
     summary_rows.append({
-        "cluster":           c,
-        "n_tracks":          len(sub),
-        "top_tags":          ", ".join(t for t, _ in tag_counts.most_common(10)),
-        "dominant_genre":    dominant_cat,
-        "popularity_mean":   sub["popularity"].mean(),
-        "release_year_mean": year,
-        "tempo_mean":        tempo_mean,
-        "energy_mean":       energy_mean,
-        "top_artists":       ", ".join(sub["artist"].value_counts().head(3).index.tolist()),
+        "cluster":            c,
+        "n_tracks":           len(sub),
+        "top_tags":           ", ".join(t for t, _ in tag_counts.most_common(15)),
+        "dominant_genre":     dominant_cat,
+        "listeners_mean":     listeners_mean,
+        "release_year_mean":  year,
+        "bpm_mean":           col_mean("bpm"),
+        "danceability_mean":  col_mean("danceability"),
+        "acousticness_mean":  col_mean("acousticness"),
+        "top_artists":        ", ".join(sub["artist"].value_counts().head(5).index.tolist()),
     })
 
 summary = pd.DataFrame(summary_rows)
@@ -158,16 +208,30 @@ for _, row in summary.iterrows():
     print(f"\n── Groupe {c+1} ({int(row['n_tracks'])} titres) ──────────────────")
     print(f"  Genre dominant : {row['dominant_genre']}")
     print(f"  Top tags       : {row['top_tags']}")
-    print(f"  Popularité moy.: {row['popularity_mean']:.1f}/100")
+    listeners = row.get("listeners_mean")
+    if listeners and not np.isnan(float(listeners)):
+        l = float(listeners)
+        if l >= 10_000_000:
+            label = "mainstream"
+        elif l >= 1_000_000:
+            label = "populaire"
+        elif l >= 100_000:
+            label = "indie/underground"
+        else:
+            label = "niche"
+        print(f"  Audience Last.fm: {l/1_000_000:.1f}M auditeurs → {label}")
     year = row.get("release_year_mean")
     if year and not np.isnan(float(year)):
         print(f"  Année moyenne  : {float(year):.0f}")
-    tempo = row.get("tempo_mean")
-    if tempo and not np.isnan(float(tempo)):
-        print(f"  Tempo moyen    : {float(tempo):.0f} BPM")
-    energy = row.get("energy_mean")
-    if energy and not np.isnan(float(energy)):
-        print(f"  Énergie moy.   : {float(energy):.4f}")
+    bpm = row.get("bpm_mean")
+    if bpm:
+        print(f"  BPM moyen      : {float(bpm):.0f}")
+    dance = row.get("danceability_mean")
+    if dance:
+        print(f"  Danceability   : {float(dance):.0f}/100")
+    acou = row.get("acousticness_mean")
+    if acou:
+        print(f"  Acousticness   : {float(acou):.0f}/100")
     print(f"  Top artistes   : {row['top_artists']}")
 
 print("\nFigures → figures/cluster_genres.png")

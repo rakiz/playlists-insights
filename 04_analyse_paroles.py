@@ -1,11 +1,11 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["lyricsgenius", "pandas", "numpy", "matplotlib", "nltk", "textblob", "wordcloud", "langdetect", "python-dotenv"]
+# ///
 """
 Script 4 — Analyse des paroles
 Récupère les paroles via Genius, analyse thèmes, structure, sentiment.
 Résultat : data/lyrics_analysis.csv + figures/lyrics_*.png
-
-Dépendances :
-    pip install lyricsgenius nltk textblob wordcloud langdetect
-    python -m nltk.downloader punkt stopwords vader_lexicon averaged_perceptron_tagger
 """
 
 import pandas as pd
@@ -18,6 +18,8 @@ import json
 from collections import Counter
 
 import nltk
+for _res in ["punkt_tab", "stopwords", "vader_lexicon", "averaged_perceptron_tagger_eng"]:
+    nltk.download(_res, quiet=True)
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize, sent_tokenize
 from textblob import TextBlob
@@ -34,10 +36,13 @@ except ImportError:
 os.makedirs("figures", exist_ok=True)
 os.makedirs("data/lyrics_cache", exist_ok=True)
 
-MAX_TRACKS_PER_CLUSTER = 30
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
+
+BATCH_SIZE = 30  # tracks par cluster par run
 
 genius = lyricsgenius.Genius(GENIUS_ACCESS_TOKEN, skip_non_songs=True,
-                              excluded_terms=["(Remix)", "(Live)"], quiet=True)
+                              excluded_terms=["(Remix)", "(Live)"])
 
 # ─── Chargement ───────────────────────────────────────────────────────────────
 df = pd.read_csv("data/tracks_clustered.csv")
@@ -59,7 +64,7 @@ def fetch_lyrics(track_id, title, artist):
 
     with open(cache_file, "w") as f:
         json.dump({"lyrics": lyrics}, f)
-    time.sleep(0.5)
+    time.sleep(0.3)
     return lyrics
 
 # ─── Nettoyage des paroles ────────────────────────────────────────────────────
@@ -113,44 +118,102 @@ def analyze_text(text, lang="en"):
     }
 
 # ─── Boucle principale ────────────────────────────────────────────────────────
-print("Récupération et analyse des paroles...")
-results = []
+LYRICS_CSV = "data/lyrics_analysis.csv"
 
-for cluster_id in sorted(df["cluster"].unique()):
-    sub = df[df["cluster"] == cluster_id].head(MAX_TRACKS_PER_CLUSTER)
-    print(f"\nGroupe {cluster_id+1} ({len(sub)} titres analysés)")
+# Tracks déjà analysés (pour ne pas les refaire)
+if os.path.exists(LYRICS_CSV):
+    already_done = set(pd.read_csv(LYRICS_CSV)["track_id"].astype(str))
+else:
+    already_done = set()
 
-    for _, row in sub.iterrows():
-        print(f"  {row['track_name'][:40]}...", end="\r")
-        raw_lyrics = fetch_lyrics(row["track_id"], row["track_name"], row["artist"])
+total_in_df   = len(df)
+total_done    = len(already_done)
+print(f"Paroles : {total_done}/{total_in_df} tracks déjà analysés.")
 
-        lang = "en"
-        try:
-            cleaned = clean_lyrics(raw_lyrics)
-            if cleaned:
-                lang = detect(cleaned[:500])
-        except Exception:
-            cleaned = ""
+def process_row(row, cluster_id):
+    raw_lyrics = fetch_lyrics(row["track_id"], row["track_name"], row["artist"])
 
-        sections  = detect_sections(raw_lyrics or "")
-        analysis  = analyze_text(cleaned, lang)
-        has_chorus = sections.get("chorus", 0) + sections.get("refrain", 0) > 0
+    lang = "en"
+    try:
+        cleaned = clean_lyrics(raw_lyrics)
+        if cleaned:
+            lang = detect(cleaned[:500])
+    except Exception:
+        cleaned = ""
 
-        results.append({
-            "track_id":   row["track_id"],
-            "track_name": row["track_name"],
-            "artist":     row["artist"],
-            "cluster":    cluster_id,
-            "lang":       lang,
-            "has_lyrics": bool(cleaned),
-            "has_chorus": has_chorus,
-            "n_sections": sum(sections.values()),
-            **analysis
-        })
+    sections   = detect_sections(raw_lyrics or "")
+    analysis   = analyze_text(cleaned, lang)
+    has_chorus = sections.get("chorus", 0) + sections.get("refrain", 0) > 0
 
-# ─── Sauvegarde ───────────────────────────────────────────────────────────────
-ldf = pd.DataFrame(results)
-ldf.to_csv("data/lyrics_analysis.csv", index=False)
+    return {
+        "track_id":   row["track_id"],
+        "track_name": row["track_name"],
+        "artist":     row["artist"],
+        "cluster":    cluster_id,
+        "lang":       lang,
+        "has_lyrics": bool(cleaned),
+        "has_chorus": has_chorus,
+        "n_sections": sum(sections.values()),
+        **analysis,
+    }
+
+round_num = 0
+while True:
+    round_num += 1
+    pending_any = df[~df["track_id"].astype(str).isin(already_done)]
+    if pending_any.empty:
+        print("\nTous les tracks ont été analysés.")
+        break
+
+    print(f"\n{'─'*50}")
+    print(f"Round {round_num} — {len(pending_any)} tracks restants")
+    print(f"{'─'*50}")
+
+    round_results = []
+    for cluster_id in sorted(df["cluster"].unique()):
+        pending = df[
+            (df["cluster"] == cluster_id) &
+            (~df["track_id"].astype(str).isin(already_done))
+        ].head(BATCH_SIZE)
+
+        if pending.empty:
+            continue
+
+        print(f"\nGroupe {cluster_id+1} — {len(pending)} tracks")
+        counter = [0]
+        rows = [row for _, row in pending.iterrows()]
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = {pool.submit(process_row, row, cluster_id): row for row in rows}
+            for future in as_completed(futures):
+                counter[0] += 1
+                row = futures[future]
+                try:
+                    result = future.result()
+                    round_results.append(result)
+                    already_done.add(str(row["track_id"]))
+                    src = "cache" if os.path.exists(f"data/lyrics_cache/{row['track_id']}.json") else "API"
+                    print(f"  [{counter[0]}/{len(rows)}] {str(row['track_name'])[:38]:<38} ({src})", end="\r")
+                except Exception as e:
+                    print(f"  ⚠ {row['track_name'][:40]} — {e}")
+                    already_done.add(str(row["track_id"]))  # skip en cas d'erreur
+        print()
+
+    # Sauvegarde après chaque round
+    if round_results:
+        new_df = pd.DataFrame(round_results)
+        if os.path.exists(LYRICS_CSV):
+            existing = pd.read_csv(LYRICS_CSV)
+            combined = pd.concat([existing, new_df], ignore_index=True)
+        else:
+            combined = new_df
+        combined.to_csv(LYRICS_CSV, index=False)
+        print(f"→ {len(round_results)} ajoutés ({len(combined)} au total dans {LYRICS_CSV})")
+
+ldf = pd.read_csv(LYRICS_CSV) if os.path.exists(LYRICS_CSV) else pd.DataFrame()
+
+if ldf.empty or "has_lyrics" not in ldf.columns:
+    print("Pas assez de données pour les figures.")
+    exit(0)
 
 # ─── Visualisation 1 : métriques par cluster ─────────────────────────────────
 metrics = ["sentiment_polarity", "vocab_richness", "repetition_rate",

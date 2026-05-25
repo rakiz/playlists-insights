@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["pandas", "numpy", "matplotlib"]
+# ///
 """
 Script 5 — Rapport de synthèse
 Combine toutes les analyses en un tableau de bord HTML.
@@ -40,8 +44,33 @@ for _, row in summary.iterrows():
     else:
         sent_str = vocab_str = repeat_str = "N/A"
 
-    year = row.get("release_year_mean", "")
-    year_str = f"{float(year):.0f}" if year and not (isinstance(year, float) and np.isnan(year)) else "N/A"
+    def fmt(val, fmt_str, fallback="N/A"):
+        try:
+            v = float(val)
+            return "N/A" if np.isnan(v) else format(v, fmt_str)
+        except (TypeError, ValueError):
+            return fallback
+
+    year_str = fmt(row.get("release_year_mean"), ".0f")
+    bpm_str  = fmt(row.get("bpm_mean"), ".0f")
+    dance_str = fmt(row.get("danceability_mean"), ".0f")
+    acou_str  = fmt(row.get("acousticness_mean"), ".0f")
+
+    listeners = row.get("listeners_mean")
+    try:
+        l = float(listeners)
+        if np.isnan(l):
+            audience_str = "N/A"
+        elif l >= 10_000_000:
+            audience_str = f"{l/1e6:.1f}M — mainstream"
+        elif l >= 1_000_000:
+            audience_str = f"{l/1e6:.1f}M — populaire"
+        elif l >= 100_000:
+            audience_str = f"{l/1e3:.0f}K — indie"
+        else:
+            audience_str = f"{l/1e3:.0f}K — niche"
+    except (TypeError, ValueError):
+        audience_str = "N/A"
 
     cluster_cards += f"""
     <div class="card">
@@ -53,8 +82,11 @@ for _, row in summary.iterrows():
         <table>
           <tr><th>Genre dominant</th><td>{row.get('dominant_genre', 'N/A')}</td></tr>
           <tr><th>Top tags</th><td style="font-size:11px">{str(row.get('top_tags', ''))[:60]}</td></tr>
-          <tr><th>Popularité moy.</th><td>{row['popularity_mean']:.1f}/100</td></tr>
+          <tr><th>Audience</th><td style="font-size:11px">{audience_str}</td></tr>
           <tr><th>Année moy.</th><td>{year_str}</td></tr>
+          <tr><th>BPM moy.</th><td>{bpm_str}</td></tr>
+          <tr><th>Danceability</th><td>{dance_str}/100</td></tr>
+          <tr><th>Acousticness</th><td>{acou_str}/100</td></tr>
           <tr><th colspan="2" style="padding-top:8px;color:#666">Paroles</th></tr>
           <tr><th>Sentiment</th><td>{sent_str}</td></tr>
           <tr><th>Richesse vocab.</th><td>{vocab_str}</td></tr>
@@ -65,20 +97,58 @@ for _, row in summary.iterrows():
     </div>
     """
 
+FIGURE_DESCRIPTIONS = {
+    "figures/umap_clusters.png": (
+        "Carte des clusters",
+        "Chaque point est un morceau. Les points proches partagent des tags et un style similaires — "
+        "le graphe de gauche colorie par groupe, celui de droite par popularité Last.fm. "
+        "<strong>Ce qu'on peut en faire :</strong> si deux groupes sont visuellement proches, leurs styles sont compatibles "
+        "pour construire une playlist de transition. Un point isolé loin de son groupe est un titre atypique de ta collection."
+    ),
+    "figures/cluster_genres.png": (
+        "Top tags par groupe",
+        "Les tags les plus fréquents de chaque groupe, triés par nombre d'occurrences. "
+        "Ce sont les mots-clés qui décrivent le mieux chaque style. "
+        "<strong>Ce qu'on peut en faire :</strong> utilise ces tags directement dans un prompt Suno — "
+        "ex. <em>\"electronic, synthwave, dark, 140 BPM\"</em> — pour générer de la musique dans cet univers."
+    ),
+    "figures/genre_distribution.png": (
+        "Distribution des genres par groupe",
+        "Part relative de chaque grande famille de genres dans chaque groupe (barres groupées). "
+        "Un groupe avec 80 % Électronique est homogène ; un groupe avec beaucoup de catégories mélangées "
+        "est un \"fourre-tout\" de ta collection. "
+        "<strong>Ce qu'on peut en faire :</strong> identifier les groupes homogènes (bons candidats pour une playlist cohérente) "
+        "vs. les groupes hétérogènes (à re-découper ou à explorer)."
+    ),
+    "figures/lyrics_metrics.png": (
+        "Métriques des paroles par groupe",
+        "Boîtes à moustaches comparant 5 métriques sur les paroles analysées. "
+        "<strong>Sentiment</strong> (-1 négatif → +1 positif), "
+        "<strong>Richesse vocab.</strong> (ratio mots uniques / total), "
+        "<strong>Répétitivité</strong> (part de mots répétés — élevé = refrain accrocheur), "
+        "<strong>Mots/phrase</strong> (complexité syntaxique), "
+        "<strong>Nb mots</strong> (longueur des textes). "
+        "<strong>Ce qu'on peut en faire :</strong> un groupe à sentiment positif + répétitivité élevée = "
+        "musique festive/pop ; sentiment négatif + richesse vocab. élevée = musique introspective/poétique."
+    ),
+    "figures/lyrics_wordclouds.png": (
+        "Champs lexicaux par groupe",
+        "Les mots les plus fréquents dans les paroles de chaque groupe (stopwords retirés). "
+        "La taille d'un mot est proportionnelle à sa fréquence. "
+        "<strong>Ce qu'on peut en faire :</strong> ces thèmes récurrents révèlent l'univers émotionnel du groupe — "
+        "amour, nuit, liberté, colère... Intègre-les dans ton prompt Suno pour ancrer l'ambiance des paroles."
+    ),
+}
+
 figures_html = ""
-for title, path in [
-    ("Carte des clusters",          "figures/umap_clusters.png"),
-    ("Top tags par groupe",         "figures/cluster_genres.png"),
-    ("Distribution des genres",     "figures/genre_distribution.png"),
-    ("Métriques des paroles",       "figures/lyrics_metrics.png"),
-    ("Champs lexicaux",             "figures/lyrics_wordclouds.png"),
-]:
+for path, (title, description) in FIGURE_DESCRIPTIONS.items():
     b64 = img_to_b64(path)
     if b64:
         figures_html += f"""
         <div class="figure-block">
           <h3>{title}</h3>
           <img src="{b64}" style="max-width:100%;border-radius:8px;">
+          <p class="figure-caption">{description}</p>
         </div>"""
 
 html = f"""<!DOCTYPE html>
@@ -100,7 +170,8 @@ html = f"""<!DOCTYPE html>
   table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
   th {{ text-align: left; color: #666; font-weight: 500; padding: 3px 0; width: 45%; }}
   td {{ text-align: right; padding: 3px 0; }}
-  .figure-block {{ margin: 24px 0; }}
+  .figure-block {{ margin: 32px 0; }}
+  .figure-caption {{ margin-top: 10px; font-size: 13px; color: #555; line-height: 1.6; max-width: 900px; background: #f8f8f8; border-left: 3px solid #ddd; padding: 10px 14px; border-radius: 0 6px 6px 0; }}
 </style>
 </head>
 <body>

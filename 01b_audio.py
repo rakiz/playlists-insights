@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["librosa", "pandas", "numpy", "requests", "python-dotenv"]
+# ///
 """
 Script 1b — Analyse audio des previews Spotify (30s)
 Extrait BPM, énergie, tonalité via librosa. Tout est caché par track_id.

@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["spotipy", "pylast", "pandas", "numpy", "python-dotenv"]
+# ///
 """
 Script 1 — Extraction des playlists Spotify + enrichissement Last.fm
 Récupère playlists, morceaux, genres artiste Spotify, et tags/stats Last.fm.
