@@ -101,8 +101,8 @@ def build_prompt(row, lsub):
     if nrg:
         parts.append(nrg)
 
-    # Tempo
-    bpm_val = row.get("bpm_mean")
+    # Tempo (médiane plus robuste aux outliers)
+    bpm_val = row.get("bpm_median") or row.get("bpm_mean")
     bpm_l   = bpm_label(bpm_val)
     if bpm_l:
         bpm_s = f"{float(bpm_val):.0f} BPM" if not pd.isna(bpm_val) else ""

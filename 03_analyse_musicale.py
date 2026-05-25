@@ -117,6 +117,12 @@ for c in sorted(df["cluster"].unique()):
         v = pd.to_numeric(sub[col], errors="coerce").mean()
         return None if pd.isna(v) else v
 
+    def col_median(col):
+        if col not in sub.columns:
+            return None
+        v = pd.to_numeric(sub[col], errors="coerce").median()
+        return None if pd.isna(v) else v
+
     listeners = pd.to_numeric(sub.get("lastfm_listeners", pd.Series(dtype=float)), errors="coerce")
     listeners_mean = listeners.mean() if listeners.notna().sum() > 0 else None
 
@@ -128,6 +134,7 @@ for c in sorted(df["cluster"].unique()):
         "listeners_mean":     listeners_mean,
         "release_year_mean":  year,
         "bpm_mean":           col_mean("bpm"),
+        "bpm_median":         col_median("bpm"),
         "danceability_mean":  col_mean("danceability"),
         "acousticness_mean":  col_mean("acousticness"),
         "top_artists":        ", ".join(sub["artist"].value_counts().head(5).index.tolist()),

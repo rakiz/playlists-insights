@@ -57,7 +57,7 @@ SKIP_NAME_TAGS = {
 def playlist_name(row):
     c     = int(row["cluster"])
     genre = row.get("dominant_genre", "Divers")
-    bpm   = row.get("bpm_mean")
+    bpm   = row.get("bpm_median") or row.get("bpm_mean")
     bpm_s = f" · {float(bpm):.0f} BPM" if bpm and not (isinstance(bpm, float) and np.isnan(bpm)) else ""
     tags  = [t.strip() for t in str(row.get("top_tags", "")).split(",")
              if t.strip() and t.strip().lower() not in SKIP_NAME_TAGS]
