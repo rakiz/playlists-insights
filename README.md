@@ -35,6 +35,7 @@ Copie `.env.example` en `.env` et remplis tes clés API (voir section Configurat
 
 ```
 01_extract.py                   Spotify + Last.fm        → data/tracks.csv
+01b_audio.py                    previews audio (optionnel, souvent vide post-2024)
 01c_bpm.py                      GetSongBPM API           → BPM, tonalité, danceability
 02_clustering.py                KMeans + UMAP            → data/tracks_clustered.csv
 03_analyse_musicale.py          genres, tags, stats      → data/cluster_summary.csv
