@@ -141,6 +141,35 @@ FIGURE_DESCRIPTIONS = {
         "<strong>Ce qu'on peut en faire :</strong> ces thèmes récurrents révèlent l'univers émotionnel du groupe — "
         "amour, nuit, liberté, colère... Intègre-les dans ton prompt Suno pour ancrer l'ambiance des paroles."
     ),
+    "figures/perles_cachees.png": (
+        "Perles cachées",
+        "Les 40 titres de ta collection avec le moins d'auditeurs Last.fm — tes découvertes les plus nichées. "
+        "Plus une barre est courte, plus l'artiste est confidentiel. "
+        "<strong>Ce qu'on peut en faire :</strong> une playlist \"underground\" de tes titres les plus rares, "
+        "ou un point de départ pour explorer des artistes que peu de gens connaissent."
+    ),
+    "figures/evolution_temporelle.png": (
+        "Évolution de tes goûts par décennie",
+        "Répartition des genres dans ta collection selon l'année de sortie des titres. "
+        "Chaque barre représente une décennie, les couleurs les familles de genres. "
+        "<strong>Ce qu'on peut en faire :</strong> identifier à quelle époque tu écoutes le plus de musique, "
+        "et voir si tes goûts ont évolué (ex. plus d'électronique dans les années 2010 ?)."
+    ),
+    "figures/carte_emotionnelle.png": (
+        "Carte émotionnelle des groupes",
+        "Chaque point est un groupe, positionné selon son acousticness moyen (axe horizontal) "
+        "et le sentiment médian de ses paroles (axe vertical). La taille ∝ au nombre de titres. "
+        "<strong>Quadrants :</strong> Festif acoustique (haut-droite), Festif électronique (haut-gauche), "
+        "Mélancolique acoustique (bas-droite), Sombre électronique (bas-gauche). "
+        "<strong>Ce qu'on peut en faire :</strong> choisir une playlist selon ton humeur du moment."
+    ),
+    "figures/artistes_pivot.png": (
+        "Artistes pivot",
+        "Artistes présents dans 3 groupes ou plus — ils traversent plusieurs univers de ta collection. "
+        "Ce sont tes artistes les plus \"transversaux\", dont le style est difficile à catégoriser. "
+        "<strong>Ce qu'on peut en faire :</strong> ces artistes sont de bons points d'entrée pour explorer "
+        "des groupes voisins, ou pour construire des playlists de transition entre styles."
+    ),
 }
 
 figures_html = ""
