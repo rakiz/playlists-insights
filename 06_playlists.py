@@ -113,6 +113,7 @@ def create_or_update_playlist(user_id, name, description, track_ids, existing_id
 cache    = load_cache()
 user_id  = None if args.dry_run else get_user_id()  # gardé pour unfollow/mise à jour
 
+MIN_PLAYLIST_SIZE = 30
 clusters = [args.cluster] if args.cluster is not None else sorted(tracks["cluster"].unique())
 
 print(f"\n{'DRY RUN — ' if args.dry_run else ''}Création des playlists Spotify\n")
@@ -120,6 +121,10 @@ print(f"\n{'DRY RUN — ' if args.dry_run else ''}Création des playlists Spotif
 for c in clusters:
     row = summary[summary["cluster"] == c].iloc[0]
     sub = tracks[tracks["cluster"] == c].copy()
+
+    if len(sub) < MIN_PLAYLIST_SIZE and args.cluster is None:
+        print(f"Groupe {c+1} — {len(sub)} titres (ignoré, < {MIN_PLAYLIST_SIZE})")
+        continue
 
     # Tri par BPM pour une écoute fluide (BPM inconnu en fin de liste)
     sub["_bpm"] = pd.to_numeric(sub.get("bpm", pd.Series(dtype=float)), errors="coerce")

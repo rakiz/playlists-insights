@@ -13,6 +13,7 @@ import numpy as np
 from collections import Counter
 from sklearn.preprocessing import StandardScaler, MultiLabelBinarizer
 from sklearn.decomposition import TruncatedSVD
+from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 import matplotlib.pyplot as plt
@@ -78,12 +79,14 @@ valid_tags = {t for t, n in tag_counts.items() if n >= 3 and t not in DESCRIPTIV
 df["_all_tags"] = df["_all_tags"].apply(lambda tags: [t for t in tags if t in valid_tags])
 
 mlb = MultiLabelBinarizer()
-X_tags = mlb.fit_transform(df["_all_tags"]).astype(float)
-print(f"  {X_tags.shape[1]} tags uniques, {X_tags.shape[0]} morceaux")
+X_tags_binary = mlb.fit_transform(df["_all_tags"]).astype(float)
+print(f"  {X_tags_binary.shape[1]} tags uniques, {X_tags_binary.shape[0]} morceaux")
+
+# TF-IDF : downweighter les tags ultra-communs (pop, rock, electronic)
+# et upweighter les tags rares (shoegaze, trip-hop, chanson française)
+X_tags = TfidfTransformer(use_idf=True, smooth_idf=True).fit_transform(X_tags_binary).toarray()
 
 # ─── Réduction LSA des tags (SVD tronquée) ───────────────────────────────────
-# KMeans gère mal les espaces creux à haute dimension : on projette dans un
-# espace dense plus petit pour faire émerger la structure de genre/style.
 n_tags = X_tags.shape[1]
 n_svd = min(100, max(1, n_tags - 1))
 svd = TruncatedSVD(n_components=n_svd, random_state=42)
@@ -155,7 +158,9 @@ for j in range(num_matrix.shape[1]):
     num_matrix[mask, j] = col_medians[j]
 
 scaler = StandardScaler()
-X_num = scaler.fit_transform(num_matrix) * 2.0  # poids relatif
+# Poids 5× pour que BPM/acousticness/danceability différencient l'énergie
+# et ne soient pas noyés par les 100 dimensions de tags SVD
+X_num = scaler.fit_transform(num_matrix) * 5.0
 
 X = np.hstack([X_tags, X_num])
 
@@ -173,8 +178,8 @@ print(f"{len(df_clean)}/{len(df)} morceaux ont des tags exploitables.")
 # ─── Choix du nombre de clusters ─────────────────────────────────────────────
 print("Recherche du nombre optimal de clusters...")
 inertias, silhouettes = [], []
-MIN_K = 7  # on veut au moins 7 groupes distincts
-K_max   = max(MIN_K + 1, min(20, len(df_clean) // 100 + 2))
+MIN_K = 15  # on veut au moins 15 groupes distincts
+K_max   = max(MIN_K + 1, min(30, len(df_clean) // 70 + 2))
 K_range = range(MIN_K, K_max)
 
 for k in K_range:
@@ -209,6 +214,37 @@ if small_clusters:
     unique = sorted(df_clean["cluster"].unique())
     remap = {old: new for new, old in enumerate(unique)}
     df_clean["cluster"] = df_clean["cluster"].map(remap)
+
+# ─── Découpage des gros groupes par décennie ─────────────────────────────────
+# Les tracks sans tags discriminants tombent dans un mega-cluster homogène.
+# On les découpe par décennie (coverage 100%) : les 80s sonnent différemment
+# des 2010s même avec des tags génériques identiques.
+MAX_CLUSTER_SIZE = 300
+DECADE_BINS = [0, 1960, 1970, 1980, 1990, 2000, 2010, 2020, 9999]
+
+next_id = df_clean["cluster"].max() + 1
+for big_c in list(df_clean["cluster"].value_counts().index):
+    mask = df_clean["cluster"] == big_c
+    if mask.sum() <= MAX_CLUSTER_SIZE:
+        continue
+    year_col = pd.to_numeric(df_clean.loc[mask, "release_year"], errors="coerce")
+    med_year = year_col.median()
+    labels = pd.cut(year_col.fillna(med_year), bins=DECADE_BINS, labels=False, right=True)
+    sizes = labels.value_counts()
+    decades = [f"≤{DECADE_BINS[i+1]}" for i in range(len(DECADE_BINS)-1)]
+    print(f"  Découpage décennie groupe {big_c} ({mask.sum()} titres) : "
+          + ", ".join(f"{decades[i]}={sizes.get(i,0)}" for i in sorted(sizes.index)))
+    for bin_i in labels.dropna().unique():
+        sub_mask = mask & (labels == bin_i)
+        if sub_mask.sum() < 5:
+            continue
+        df_clean.loc[sub_mask, "cluster"] = next_id
+        next_id += 1
+
+# Renumérote une dernière fois
+unique = sorted(df_clean["cluster"].unique())
+remap = {old: new for new, old in enumerate(unique)}
+df_clean["cluster"] = df_clean["cluster"].map(remap)
 
 # ─── Réduction dimensionnelle ─────────────────────────────────────────────────
 print("Réduction dimensionnelle...")
