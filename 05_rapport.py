@@ -38,9 +38,12 @@ for _, row in summary.iterrows():
 
     if has_lyrics:
         lsub = lyrics[lyrics["cluster"] == c]
-        sent_str   = f"{lsub['sentiment_polarity'].mean():+.2f}"
-        vocab_str  = f"{lsub['vocab_richness'].mean():.2f}"
-        repeat_str = f"{lsub['repetition_rate'].mean():.2f}"
+        def _lmean(col):
+            v = lsub[col].mean() if not lsub.empty else float("nan")
+            return f"{v:+.2f}" if col == "sentiment_polarity" else f"{v:.2f}" if not (v != v) else "N/A"
+        sent_str   = _lmean("sentiment_polarity")
+        vocab_str  = _lmean("vocab_richness")
+        repeat_str = _lmean("repetition_rate")
     else:
         sent_str = vocab_str = repeat_str = "N/A"
 

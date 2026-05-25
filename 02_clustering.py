@@ -31,6 +31,21 @@ os.makedirs("figures", exist_ok=True)
 
 df = pd.read_csv("data/tracks.csv")
 
+# ─── Déduplication des versions (Remastered, feat., Deluxe...) ───────────────
+from utils import normalize_title, normalize_artist, KEY_ALIASES
+
+before = len(df)
+df["_norm_title"]  = df["track_name"].map(normalize_title)
+df["_norm_artist"] = df["artist"].map(normalize_artist)
+df["_listeners"]   = pd.to_numeric(df.get("lastfm_listeners", pd.Series(dtype=float)), errors="coerce").fillna(0)
+df = (
+    df.sort_values("_listeners", ascending=False)
+      .drop_duplicates(subset=["_norm_artist", "_norm_title"])
+      .sort_index()
+      .reset_index(drop=True)
+)
+print(f"Déduplication : {before} → {len(df)} morceaux ({before - len(df)} doublons retirés)")
+
 # ─── Construction des features de tags ───────────────────────────────────────
 def parse_tags(row):
     tags = set()
@@ -113,9 +128,7 @@ KEY_ORDER = ["C","G","D","A","E","B","F#","Db","Ab","Eb","Bb","F",
              "Cm","Gm","Dm","Am","Em","Bm","F#m","Dbm","Abm","Ebm","Bbm","Fm"]
 KEY_TO_IDX = {k: i for i, k in enumerate(KEY_ORDER)}
 # Variantes orthographiques fréquentes
-KEY_ALIASES = {"C#": "Db", "C#m": "Dbm", "G#": "Ab", "G#m": "Abm",
-               "D#": "Eb", "D#m": "Ebm", "A#": "Bb", "A#m": "Bbm",
-               "Gb": "F#", "Gbm": "F#m"}
+# KEY_ALIASES importé depuis utils (inclut les variantes unicode ♯/♭)
 
 if "key" in df.columns and df["key"].notna().sum() > len(df) * 0.3:
     def key_to_angle(k):
@@ -160,7 +173,9 @@ print(f"{len(df_clean)}/{len(df)} morceaux ont des tags exploitables.")
 # ─── Choix du nombre de clusters ─────────────────────────────────────────────
 print("Recherche du nombre optimal de clusters...")
 inertias, silhouettes = [], []
-K_range = range(2, min(20, len(df_clean) // 100 + 2))
+MIN_K = 7  # on veut au moins 7 groupes distincts
+K_max   = max(MIN_K + 1, min(20, len(df_clean) // 100 + 2))
+K_range = range(MIN_K, K_max)
 
 for k in K_range:
     km = KMeans(n_clusters=k, random_state=42, n_init=10)
@@ -252,7 +267,9 @@ plt.savefig("figures/elbow.png", dpi=150)
 plt.close()
 
 # ─── Sauvegarde ──────────────────────────────────────────────────────────────
-df_merged = df.merge(df_clean[["track_id", "cluster", "x", "y"]], on="track_id", how="left")
+internal_cols = ["_norm_title", "_norm_artist", "_listeners", "_all_tags", "_bpm"]
+df_out = df.drop(columns=[c for c in internal_cols if c in df.columns])
+df_merged = df_out.merge(df_clean[["track_id", "cluster", "x", "y"]], on="track_id", how="left")
 df_merged.to_csv("data/tracks_clustered.csv", index=False)
 
 print(f"\nClustering terminé → data/tracks_clustered.csv")
