@@ -34,16 +34,16 @@ Copie `.env.example` en `.env` et remplis tes clés API (voir section Configurat
 ## Pipeline complet
 
 ```
-01_extract.py                   Spotify + Last.fm        → data/tracks.csv
-01b_audio.py                    previews audio (optionnel, souvent vide post-2024)
-01c_bpm.py                      GetSongBPM API           → BPM, tonalité, danceability
-02_clustering.py                KMeans + UMAP            → data/tracks_clustered.csv
-03_analyse_musicale.py          genres, tags, stats      → data/cluster_summary.csv
-04_analyse_paroles.py           Genius + NLP             → data/lyrics_analysis.csv
-05_rapport.py                   tableau de bord HTML     → rapport.html
-06_playlists.py                 création Spotify         → playlists dans ton compte
-07_suno_prompts.py              prompts IA               → data/suno_prompts.csv
-08_analyses_supplementaires.py  perles cachées, évolution, carte émotionnelle
+01_extract.py              → Spotify + Last.fm   → data/tracks.csv
+01b_audio.py               → previews audio      → features locales (si disponibles)
+01c_bpm.py                 → GetSongBPM          → BPM, tonalité, danceability
+02_clustering.py           → clustering          → data/tracks_clustered.csv
+03_analyse_musicale.py     → analyse genres      → data/cluster_summary.csv
+04_analyse_paroles.py      → analyse lyrics      → data/lyrics_analysis.csv
+05_rapport.py              → rapport HTML        → rapport.html
+06_playlists.py            → création Spotify    → playlists dans ton compte
+07_suno_prompts.py         → prompts Suno        → data/suno_prompts.csv
+08_analyses_supplementaires.py → analyses extra  → figures/
 ```
 
 ### Lancement
